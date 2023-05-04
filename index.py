@@ -56,7 +56,7 @@ def shibie (filePath):
         # 按就近的使用，所以我用的是ap-shanghai
         client = ocr_client.OcrClient(cred, "ap-shanghai", clientProfile)
 
-        req = models.GeneralAccurateOCRRequest()
+        req = models.GeneralBasicOCRRequest()
         # 将本地文件转换为ImageBase64
         with open(filePath, 'rb') as f:
             base64_data = base64.b64encode(f.read())
@@ -64,7 +64,7 @@ def shibie (filePath):
         params = '{"ImageBase64":"%s"}' % s
         req.from_json_string(params)
 
-        resp = client.GeneralAccurateOCR(req)
+        resp = client.GeneralBasicOCR(req)
         resp = resp.to_json_string()
         # 将官网文档里输出字符串格式的转换为字典，如果不需要可以直接print(resp)
         resp = json.loads(resp)
@@ -123,7 +123,11 @@ def shibie (filePath):
         #     temp = temp.replace('/', '-')
         #     temp = temp.replace(')', '1')
         #     return [temp, '', '']
-        
+        if ('A' in str0):
+            str0 = str0.split('A')[0]
+        if ('B' in str0):
+            str0 = str0.split('B')[0]
+        print([str0, str2, str1])
         return [str0, str2, str1]
     except TencentCloudSDKException as err:
         # print('无识别结果')
