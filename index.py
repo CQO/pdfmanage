@@ -47,7 +47,7 @@ def saveToPdf(image_file, savePath, width, height):
 def shibie (filePath):
     try:
         # 用你的ID和KEY替换掉SecretId、SecretKey
-        cred = credential.Credential("AKIDKzOWO0EnmUzEBqoRp54okQwwhHadIYhZ", "lHXbCZtw83ScV6RSCfrnY3xaeSzFFcjZ")
+        cred = credential.Credential("AKID62ub6KoNnDWkz50ymMq58mQxTp0161mO", "Zw9C5ttobWK0a5zztdDk6TjnnsxnRt8A")
         httpProfile = HttpProfile()
         httpProfile.endpoint = "ocr.tencentcloudapi.com"
         # 使用TC3-HMAC-SHA256加密方法，不使用可能会报错
