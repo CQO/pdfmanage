@@ -3,6 +3,7 @@ import os
 import re
 import cv2
 import json
+from PIL import Image
 import numpy as np
 from tencentcloud.common import credential
 from tencentcloud.common.profile.client_profile import ClientProfile
@@ -15,7 +16,33 @@ import time
 
 if os.path.exists('temp'):
     shutil.rmtree('temp')
+
 os.mkdir("temp")
+
+
+def image_to_pdf(input_path, output_path):
+    img = Image.open(input_path)
+    pdf_path = output_path
+    img.save(pdf_path, "PDF", resolution=72.0)
+
+# if not os.path.exists('output'):
+#     os.mkdir("output")
+
+def saveToPdf(image_file, savePath, width, height):
+
+    # 新建PDF文件
+    pdf_file = fitz.open()
+
+    # 新建一页
+    page = pdf_file.new_page(width=width, height=height)
+
+    # 将图像文件插入到页面中
+    img_rect = fitz.Rect(0, 0, page.mediabox[2], page.mediabox[3])
+    page.insert_image(img_rect, filename=image_file)
+
+    # 保存PDF文件
+    pdf_file.save(savePath)
+    pdf_file.close()
 
 def shibie (filePath):
     try:
@@ -52,7 +79,10 @@ def shibie (filePath):
         for resp in resp_list:
             match = re.findall('[1-9]/[1-9]', resp['DetectedText'])
             if len(match) >= 1:
-                str2 = '-' + match[0].replace('/', '-')
+                str2 = match[0].replace('/', '-')
+                str2 = '-' + str2.split('-')[0]
+                if (int(str2) == 1):
+                    str2 = ''
             if 'A' in resp['DetectedText']:
                 str1 = '-A'
             if 'B' in resp['DetectedText']:
@@ -63,7 +93,7 @@ def shibie (filePath):
             
             # print(result)
             # if ((len(result.split('.')) > 3 or '-' in result) and ':' not in result and len(result) > 12 and '/' not in result and '\\' not in result):
-            if ('ME' in result and '-' in result):
+            if (('RM' in result and '-' in result) or ('ME' in result and '-' in result) or ('TF' in result and '.' in result) or (result.count('.') == 4)):
                 result = result.replace(')', '1')
                 result = result.replace('图', '')
                 result = result.replace('号', '')
@@ -73,6 +103,12 @@ def shibie (filePath):
                 result = result.split('|')
                 for item in result:
                     if ('ME' in item and '-' in item):
+                        str0 = item
+                    if ('RM' in item and '-' in item):
+                        str0 = item
+                    if ('TF' in item and '.' in item):
+                        str0 = item
+                    if (item.count('.') == 4):
                         str0 = item
                         # print([str0, str1, str2])
             ind += 1
@@ -88,7 +124,7 @@ def shibie (filePath):
         #     temp = temp.replace(')', '1')
         #     return [temp, '', '']
         
-        return [str0, str1, str2]
+        return [str0, str2, str1]
     except TencentCloudSDKException as err:
         # print('无识别结果')
         return [None]
@@ -133,7 +169,7 @@ def pdf_image(pdfPath, imgPath, zoom_x, zoom_y, rotation_angle):
     pdf = fitz.open(pdfPath)
     # print(pdf)
     name = pdf.name
-    name = name.replace('pdfs/', '').replace('.pdf', '')
+    name = name.replace('图纸/', '').replace('.pdf', '')
     
     # 逐页读取PDF
     for pg in range(0, len(pdf)):
@@ -150,9 +186,9 @@ def pdf_image(pdfPath, imgPath, zoom_x, zoom_y, rotation_angle):
 
     
 
-# pdf_image(r"pdfs/01.pdf", r"images/", 10, 10, 0)
+# pdf_image(r"图纸/01.pdf", r"images/", 10, 10, 0)
 
-file_dir = r'pdfs/'
+file_dir = r'图纸/'
 file_list = []
 for filename in os.listdir(file_dir):
     # 对文件名进行解码，避免中文乱码
@@ -164,8 +200,9 @@ indTemp = 0
 for file in file_list:
     indTemp += 1
     print('PDF文件处理进度: %s/%s' % (indTemp, len(file_list)))
-    head = 'pdfs/'
-    pdf_image(head + file, r"temp/", 5, 5, 0)
+    head = '图纸/'
+    if ('.pdf' in file):
+        pdf_image(head + file, r"temp/", 5, 5, 0)
 
 images_dir = r'temp/'
 images_list = []
@@ -208,7 +245,7 @@ for file in images_list:
     if os.path.exists(imgPath):
         img_big = cv_imread(imgPath)
         height, width, channels = img_big.shape
-        img_bigCop = img_big[int(height * 0.7):height, int(width * 0.65):width]
+        img_bigCop = img_big[int(height * 0.7):height, int(width * 0.45):width]
         cv2.imencode('.png', img_bigCop)[1].tofile(imgPathTemp)
         
         # 判断文件是否存在
@@ -218,29 +255,40 @@ for file in images_list:
             if (not resImg[0]):
                 img_big = changeImage(img_big, 180)
                 height, width, channels = img_big.shape
-                img_bigCop = img_big[int(height * 0.7):height, int(width * 0.65):width]
+                img_bigCop = img_big[int(height * 0.7):height, int(width * 0.45):width]
                 cv2.imencode('.png', img_bigCop)[1].tofile(imgPathTemp)
                 resImg = shibie(imgPathTemp)
             if (not resImg[0]):
                 img_big = changeImage(img_big, 90)
                 height, width, channels = img_big.shape
-                img_bigCop = img_big[int(height * 0.7):height, int(width * 0.65):width]
+                img_bigCop = img_big[int(height * 0.7):height, int(width * 0.45):width]
                 cv2.imencode('.png', img_bigCop)[1].tofile(imgPathTemp)
                 resImg = shibie(imgPathTemp)
             if (not resImg[0]):
                 img_big = changeImage(img_big, 180)
                 height, width, channels = img_big.shape
-                img_bigCop = img_big[int(height * 0.7):height, int(width * 0.65):width]
+                img_bigCop = img_big[int(height * 0.7):height, int(width * 0.45):width]
                 cv2.imencode('.png', img_bigCop)[1].tofile(imgPathTemp)
                 resImg = shibie(imgPathTemp)
             if (resImg[0] and 'sworkbel' not in resImg):
-                outFileName = './pdfs/' + resImg[0] +  resImg[1] + resImg[2] + '.pdf'
+                if (resImg[1] == '-1'):
+                    resImg[1] = ''
+                # outFileName = './output/' + resImg[0] +  resImg[1] + resImg[2] + '.pdf'
+                # if os.path.exists(outFileName):
+                #     print('文件已存在:' + outFileName)
+                # else:
+                #     cv2.imwrite('./temp/' + file, img_big)
+                #     image_to_pdf('./temp/' + file, outFileName, width, height)
+                
+                outFileName = './图纸/' + resImg[0] +  resImg[1] + resImg[2] + '.pdf'
                 if os.path.exists(outFileName):
                     print('文件已存在:' + outFileName)
                 else:
-                    os.rename('./pdfs/' + file.replace('png', 'pdf'), outFileName)
+                    cv2.imwrite('./图纸/' + resImg[0] +  resImg[1] + resImg[2] + '.png', img_big)
+                    os.rename('./图纸/' + file.replace('png', 'pdf'), outFileName)
         else:
             print('文件不存在:' + imgPathTemp)
     else:
         print('文件不存在:' + imgPath)
-# shutil.rmtree('temp')
+shutil.rmtree('temp')
+input("按任意键退出")
