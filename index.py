@@ -56,7 +56,7 @@ def shibie (filePath):
         # 按就近的使用，所以我用的是ap-shanghai
         client = ocr_client.OcrClient(cred, "ap-shanghai", clientProfile)
 
-        req = models.GeneralBasicOCRRequest()
+        req = models.GeneralAccurateOCRRequest()
         # 将本地文件转换为ImageBase64
         with open(filePath, 'rb') as f:
             base64_data = base64.b64encode(f.read())
@@ -64,7 +64,7 @@ def shibie (filePath):
         params = '{"ImageBase64":"%s"}' % s
         req.from_json_string(params)
 
-        resp = client.GeneralBasicOCR(req)
+        resp = client.GeneralAccurateOCR(req)
         resp = resp.to_json_string()
         # 将官网文档里输出字符串格式的转换为字典，如果不需要可以直接print(resp)
         resp = json.loads(resp)
@@ -75,7 +75,7 @@ def shibie (filePath):
         textTemp = ''
         str0 = ''
         str2 = ''
-        str1 = 'A'
+        str1 = '-A'
         for resp in resp_list:
             match = re.findall('[1-9]/[1-9]', resp['DetectedText'])
             if len(match) >= 1:
@@ -97,6 +97,8 @@ def shibie (filePath):
                 result = result.replace(')', '1')
                 result = result.replace('图', '')
                 result = result.replace('号', '')
+                result = result.replace('专', '')
+                result = result.replace('+', '')
                 result = result.replace(' ', '|')
                 
                 
@@ -111,6 +113,10 @@ def shibie (filePath):
                     if (item.count('.') == 4):
                         str0 = item
                         # print([str0, str1, str2])
+                if ('TF' in str0 and str0.find('TF') != 0):
+                    str0 = str0[str0.find('TF'):]
+                if ('R' in str0 and 'DR' not in str0):
+                    str0 = str0.replace('R', 'DR')
             ind += 1
         # print('无识别结果')
         # textTemp.replace('\r', '')
@@ -127,7 +133,7 @@ def shibie (filePath):
             str0 = str0.split('A')[0]
         if ('B' in str0):
             str0 = str0.split('B')[0]
-        print([str0, str2, str1])
+        # print([str0, str2, str1])
         return [str0, str2, str1]
     except TencentCloudSDKException as err:
         # print('无识别结果')
@@ -288,8 +294,11 @@ for file in images_list:
                 if os.path.exists(outFileName):
                     print('文件已存在:' + outFileName)
                 else:
-                    cv2.imwrite('./图纸/' + resImg[0] +  resImg[1] + resImg[2] + '.png', img_big)
-                    os.rename('./图纸/' + file.replace('png', 'pdf'), outFileName)
+                    if os.path.exists('./图纸/' + file.replace('png', 'pdf')):
+                        # cv2.imwrite('./' + resImg[0] +  resImg[1] + resImg[2] + '.png', img_big)
+                        os.rename('./图纸/' + file.replace('png', 'pdf'), outFileName)
+                    else:
+                        print('文件不存在: ./图纸/' + file.replace('png', 'pdf'))
         else:
             print('文件不存在:' + imgPathTemp)
     else:
