@@ -56,7 +56,7 @@ def shibie (filePath):
         # 按就近的使用，所以我用的是ap-shanghai
         client = ocr_client.OcrClient(cred, "ap-shanghai", clientProfile)
 
-        req = models.GeneralAccurateOCRRequest()
+        req = models.GeneralBasicOCRRequest()
         # 将本地文件转换为ImageBase64
         with open(filePath, 'rb') as f:
             base64_data = base64.b64encode(f.read())
@@ -64,7 +64,7 @@ def shibie (filePath):
         params = '{"ImageBase64":"%s"}' % s
         req.from_json_string(params)
 
-        resp = client.GeneralAccurateOCR(req)
+        resp = client.GeneralBasicOCR(req)
         resp = resp.to_json_string()
         # 将官网文档里输出字符串格式的转换为字典，如果不需要可以直接print(resp)
         resp = json.loads(resp)
@@ -81,7 +81,7 @@ def shibie (filePath):
             if len(match) >= 1:
                 str2 = match[0].replace('/', '-')
                 str2 = '-' + str2.split('-')[0]
-                if (int(str2) == 1):
+                if (str2 == '-1' and str2.split('-')[1][0] != '2'):
                     str2 = ''
             if 'A' in resp['DetectedText']:
                 str1 = '-A'
@@ -133,7 +133,7 @@ def shibie (filePath):
             str0 = str0.split('A')[0]
         if ('B' in str0):
             str0 = str0.split('B')[0]
-        # print([str0, str2, str1])
+        str0.replace('/', '')
         return [str0, str2, str1]
     except TencentCloudSDKException as err:
         # print('无识别结果')
@@ -213,6 +213,7 @@ for file in file_list:
     head = '图纸/'
     if ('.pdf' in file):
         pdf_image(head + file, r"temp/", 5, 5, 0)
+        
 
 images_dir = r'temp/'
 images_list = []
@@ -247,6 +248,7 @@ for file in images_list:
 indTemp = 0
 for file in images_list:
     indTemp += 1
+    time.sleep(indTemp * 5)
     print('图片处理进度: %s/%s' % (indTemp, len(images_list)))
     imgPath = '.\\temp\\' + file
     imgPathTemp = '.\\temp\\temp_' + file
@@ -281,8 +283,6 @@ for file in images_list:
                 cv2.imencode('.png', img_bigCop)[1].tofile(imgPathTemp)
                 resImg = shibie(imgPathTemp)
             if (resImg[0] and 'sworkbel' not in resImg):
-                if (resImg[1] == '-1'):
-                    resImg[1] = ''
                 # outFileName = './output/' + resImg[0] +  resImg[1] + resImg[2] + '.pdf'
                 # if os.path.exists(outFileName):
                 #     print('文件已存在:' + outFileName)
