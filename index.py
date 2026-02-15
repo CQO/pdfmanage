@@ -133,10 +133,17 @@ def shibie (filePath):
             str0 = str0.split('A')[0]
         if ('B' in str0):
             str0 = str0.split('B')[0]
-        str0.replace('/', '')
+        str0 = str0.replace('/', '')
+        str0 = str0.replace('.', ' ')
+        str1 = str1.replace('.', ' ')
+        str2 = str2.replace('.', ' ')
+        str0 = str0.replace(':', ' ')
+        str1 = str1.replace(':', ' ')
+        str2 = str2.replace(':', ' ')
+        print([str0, str2, str1])
         return [str0, str2, str1]
     except TencentCloudSDKException as err:
-        # print('无识别结果')
+        print('无识别结果')
         return [None]
 
 def changeImage(img, angle):
@@ -248,7 +255,7 @@ for file in images_list:
 indTemp = 0
 for file in images_list:
     indTemp += 1
-    time.sleep(indTemp * 5)
+    time.sleep(5)
     print('图片处理进度: %s/%s' % (indTemp, len(images_list)))
     imgPath = '.\\temp\\' + file
     imgPathTemp = '.\\temp\\temp_' + file
