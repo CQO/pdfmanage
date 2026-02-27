@@ -34,6 +34,21 @@ from tencentcloud.ocr.v20181119 import ocr_client, models
 TENCENT_SECRET_ID = "AKID62ub6KoNnDWkz50ymMq58mQxTp0161mO"
 TENCENT_SECRET_KEY = "Zw9C5ttobWK0a5zztdDk6TjnnsxnRt8A"
 DEFAULT_REGION = "ap-shanghai"  # 图纸识别推荐上海，表格识别推荐广州
+TEMP_DIR = "temp_drawing"
+OUTPUT_DIR = "./识别结果"
+
+def setup_temp_dir():
+    """创建临时目录"""
+    if os.path.exists(TEMP_DIR):
+        shutil.rmtree(TEMP_DIR)
+    os.makedirs(TEMP_DIR, exist_ok=True)
+
+def cleanup_temp():
+    """清理临时目录"""
+    if os.path.exists(TEMP_DIR):
+        shutil.rmtree(TEMP_DIR)
+
+
 
 # ==================== 增值税发票识别模块 ====================
 class VatInvoiceRecognizer:
@@ -43,7 +58,6 @@ class VatInvoiceRecognizer:
         self.secret_id = secret_id or TENCENT_SECRET_ID
         self.secret_key = secret_key or TENCENT_SECRET_KEY
         self.region = region
-        self.output_dir = "发票识别结果"
         
     def recognize_invoice(self, image_path):
         """
@@ -142,7 +156,7 @@ class VatInvoiceRecognizer:
                 print(msg)
         
         try:
-            log(f"📄 处理文件: {os.path.basename(image_path)}")
+            log(f"📄 处理发票: {os.path.basename(image_path)}")
             
             # 识别发票
             invoice_info = self.recognize_invoice(image_path)
@@ -159,14 +173,14 @@ class VatInvoiceRecognizer:
             
             # 保存JSON
             if output_format in ['json', 'both']:
-                json_path = os.path.join(self.output_dir, f"{base_name}_{invoice_number}.json")
+                json_path = os.path.join(OUTPUT_DIR, f"{base_name}_{invoice_number}.json")
                 counter = 1
                 original_json = json_path
                 while os.path.exists(json_path):
                     name_part = Path(original_json).stem
                     if name_part.endswith(f"_{counter-1}"):
                         name_part = name_part[:-3]
-                    json_path = os.path.join(self.output_dir, f"{name_part}_{counter}.json")
+                    json_path = os.path.join(OUTPUT_DIR, f"{name_part}_{counter}.json")
                     counter += 1
                 
                 self.save_as_json(invoice_info, json_path)
@@ -175,14 +189,14 @@ class VatInvoiceRecognizer:
             
             # 保存TXT
             if output_format in ['txt', 'both']:
-                txt_path = os.path.join(self.output_dir, f"{base_name}_{invoice_number}.txt")
+                txt_path = os.path.join(OUTPUT_DIR, f"{base_name}_{invoice_number}.txt")
                 counter = 1
                 original_txt = txt_path
                 while os.path.exists(txt_path):
                     name_part = Path(original_txt).stem
                     if name_part.endswith(f"_{counter-1}"):
                         name_part = name_part[:-3]
-                    txt_path = os.path.join(self.output_dir, f"{name_part}_{counter}.txt")
+                    txt_path = os.path.join(OUTPUT_DIR, f"{name_part}_{counter}.txt")
                     counter += 1
                 
                 self.save_as_txt(invoice_info, txt_path)
@@ -205,27 +219,7 @@ class VatInvoiceRecognizer:
         except Exception as e:
             log(f"❌ 处理失败: {str(e)}")
             return None
-    
-    def batch_process(self, image_files, output_format='both', log_callback=None):
-        """批量处理发票文件"""
-        os.makedirs(self.output_dir, exist_ok=True)
-        
-        success_count = 0
-        fail_count = 0
-        results = []
-        
-        for i, image_path in enumerate(image_files):
-            if log_callback:
-                log_callback(f"\n📌 进度: {i+1}/{len(image_files)}")
-            
-            result = self.process_invoice(image_path, output_format, log_callback)
-            if result:
-                success_count += 1
-                results.extend(result)
-            else:
-                fail_count += 1
-        
-        return success_count, fail_count, results
+
 
 
 # ==================== 表格识别模块 ====================
@@ -268,7 +262,6 @@ class TableOCRRecognizer:
         
         # PDF处理
         if isinstance(image_input, str) and image_input.lower().endswith('.pdf'):
-            req.IsPdf = True
             req.PdfPageNumber = 1
         
         # 发起请求
@@ -363,20 +356,10 @@ class DrawingNumberRecognizer:
         self.secret_id = secret_id or TENCENT_SECRET_ID
         self.secret_key = secret_key or TENCENT_SECRET_KEY
         self.region = region
-        self.temp_dir = "temp_drawing"
-        self.output_dir = "图纸_已命名"
         
-    def setup_temp_dir(self):
-        """创建临时目录"""
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
-        os.makedirs(self.temp_dir, exist_ok=True)
-        os.makedirs(self.output_dir, exist_ok=True)
     
-    def cleanup_temp(self):
-        """清理临时目录"""
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
+    
+    
     
     def cv_imread(self, file_path):
         """解决imread不能读取中文路径的问题"""
@@ -403,7 +386,7 @@ class DrawingNumberRecognizer:
             page = pdf[pg]
             trans = fitz.Matrix(zoom, zoom)
             pm = page.get_pixmap(matrix=trans, alpha=False)
-            img_path = os.path.join(self.temp_dir, f"{Path(pdf_path).stem}_p{pg+1}.png")
+            img_path = os.path.join(TEMP_DIR, f"{Path(pdf_path).stem}_p{pg+1}.png")
             pm.save(img_path)
             images.append(img_path)
         pdf.close()
@@ -516,7 +499,7 @@ class DrawingNumberRecognizer:
                 print(msg)
         
         try:
-            log(f"📄 处理文件: {os.path.basename(pdf_path)}")
+            log(f"📄 处理图纸: {os.path.basename(pdf_path)}")
             
             # PDF转图片
             img_paths = self.pdf_to_image(pdf_path, zoom=3)
@@ -546,7 +529,7 @@ class DrawingNumberRecognizer:
             img_crop = img_big[crop_y:height, crop_x:width]
             
             # 保存裁剪图片
-            crop_path = os.path.join(self.temp_dir, f"crop_{Path(img_path).name}")
+            crop_path = os.path.join(TEMP_DIR, f"crop_{Path(img_path).name}")
             cv2.imencode('.png', img_crop)[1].tofile(crop_path)
             
             # 尝试多次旋转识别
@@ -571,14 +554,14 @@ class DrawingNumberRecognizer:
             if best_result[0]:
                 # 生成新文件名
                 new_filename = f"{best_result[0]}{best_result[1]}{best_result[2]}.pdf"
-                new_path = os.path.join(self.output_dir, new_filename)
+                new_path = os.path.join(OUTPUT_DIR, new_filename)
                 
                 # 处理重名
                 counter = 1
                 while os.path.exists(new_path):
                     name_part = f"{best_result[0]}{best_result[1]}{best_result[2]}"
                     new_filename = f"{name_part}_{counter}.pdf"
-                    new_path = os.path.join(self.output_dir, new_filename)
+                    new_path = os.path.join(OUTPUT_DIR, new_filename)
                     counter += 1
                 
                 # 复制并重命名文件
@@ -592,28 +575,7 @@ class DrawingNumberRecognizer:
         except Exception as e:
             log(f"❌ 处理失败: {str(e)}")
             return None
-    
-    def batch_process(self, pdf_files, log_callback=None):
-        """批量处理PDF图纸"""
-        self.setup_temp_dir()
-        
-        success_count = 0
-        fail_count = 0
-        results = []
-        
-        for i, pdf_path in enumerate(pdf_files):
-            if log_callback:
-                log_callback(f"\n📌 进度: {i+1}/{len(pdf_files)}")
-            
-            result = self.process_pdf_drawing(pdf_path, log_callback)
-            if result:
-                success_count += 1
-                results.append(result)
-            else:
-                fail_count += 1
-        
-        self.cleanup_temp()
-        return success_count, fail_count, results
+
 
 
 # ==================== 通用文字识别模块 ====================
@@ -712,7 +674,7 @@ class GeneralOCRRecognizer:
                 print(msg)
         
         try:
-            log(f"📄 处理文件: {os.path.basename(image_path)}")
+            log(f"📄 处理图片: {os.path.basename(image_path)}")
             
             # 识别文字
             text_items = self.recognize_text(image_path, language, scene)
@@ -798,9 +760,6 @@ class OCRTabbedApp:
         
         # 文字识别输出格式
         self.general_format = StringVar(value="txt")  # 新增：文字识别输出格式
-        
-        # 公用输出目录
-        self.common_output_dir = StringVar(value="")
 
         # 设置窗口图标
         try:
@@ -821,9 +780,7 @@ class OCRTabbedApp:
         
         # 发票输出格式
         self.invoice_format = StringVar(value="both")
-        
-        # 公用输出目录
-        self.common_output_dir = StringVar(value="")
+
         
         # 设置UI
         self.setup_ui()
@@ -937,11 +894,7 @@ class OCRTabbedApp:
             label="清除输出目录", 
             command=self.clear_common_output
         )
-        
-        # 帮助菜单
-        help_menu = Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="帮助", menu=help_menu)
-        help_menu.add_command(label="关于", command=self.show_about)
+
 
     # ========== 文字识别方法 ==========
     def select_general_files(self):
@@ -981,6 +934,7 @@ class OCRTabbedApp:
         file_frame = ttk.LabelFrame(tab, text="图片文件", padding="5")  # 减小内边距
         file_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 5))  # 减小间距
         file_frame.columnconfigure(1, weight=1)
+        
         
         # 文字识别文件变量
         self.general_files = []
@@ -1062,14 +1016,14 @@ class OCRTabbedApp:
 
     def setup_table_tab(self):
         """表格识别选项卡"""
-        tab = ttk.Frame(self.notebook, padding="15")
+        tab = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(tab, text="表格识别V3")
         tab.columnconfigure(0, weight=1)
         tab.rowconfigure(2, weight=1)
         
         # ===== 文件选择 =====
-        file_frame = ttk.LabelFrame(tab, text="文件选择", padding="10")
-        file_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 15))
+        file_frame = ttk.LabelFrame(tab, text="文件选择", padding="5")
+        file_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 5))
         file_frame.columnconfigure(1, weight=1)
         
         # 表格文件变量
@@ -1095,7 +1049,7 @@ class OCRTabbedApp:
         # 文件列表
         self.table_listbox = Listbox(
             file_frame,
-            height=4,
+            height=9,
             selectmode=EXTENDED,
             activestyle='none'
         )
@@ -1103,34 +1057,19 @@ class OCRTabbedApp:
     def show_current_output(self):
         """显示当前输出目录（此方法保留但不使用）"""
         pass
-    
-    def show_current_output(self):
-        """显示当前输出目录（此方法保留但不使用）"""
-        pass
-    
-    def show_about(self):
-        """显示关于信息"""
-        about_text = """CISDI文字识别工具 V1.0
-        
-功能：
-• 表格识别V3 - 图片/PDF转Excel
-• 图纸图号识别 - PDF图纸批量重命名
-• 增值税发票识别 - 识别发票关键信息
 
-技术支持：腾讯云OCR
-"""
-        messagebox.showinfo("关于", about_text)
+
 
     def setup_drawing_tab(self):
         """图纸图号识别选项卡"""
-        tab = ttk.Frame(self.notebook, padding="15")
+        tab = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(tab, text="图纸图号识别")
         tab.columnconfigure(0, weight=1)
         tab.rowconfigure(2, weight=1)
         
         # ===== 文件选择 =====
-        file_frame = ttk.LabelFrame(tab, text="PDF图纸文件", padding="10")
-        file_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 15))
+        file_frame = ttk.LabelFrame(tab, text="PDF图纸文件", padding="5")
+        file_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 5))
         file_frame.columnconfigure(1, weight=1)
         
         # 图纸文件变量
@@ -1156,7 +1095,7 @@ class OCRTabbedApp:
         # 文件列表
         self.drawing_listbox = Listbox(
             file_frame,
-            height=4,
+            height=9,
             selectmode=EXTENDED,
             activestyle='none'
         )
@@ -1164,14 +1103,14 @@ class OCRTabbedApp:
     
     def setup_invoice_tab(self):
         """增值税发票识别选项卡"""
-        tab = ttk.Frame(self.notebook, padding="15")
+        tab = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(tab, text="增值税发票识别")
         tab.columnconfigure(0, weight=1)
         tab.rowconfigure(3, weight=1)
         
         # ===== 文件选择 =====
-        file_frame = ttk.LabelFrame(tab, text="发票图片文件", padding="10")
-        file_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 15))
+        file_frame = ttk.LabelFrame(tab, text="发票图片文件", padding="5")
+        file_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 5))
         file_frame.columnconfigure(1, weight=1)
         
         # 发票文件变量
@@ -1197,15 +1136,15 @@ class OCRTabbedApp:
         # 文件列表
         self.invoice_listbox = Listbox(
             file_frame,
-            height=4,
+            height=6,
             selectmode=EXTENDED,
             activestyle='none'
         )
         self.invoice_listbox.grid(row=1, column=0, columnspan=3, sticky=(W, E), pady=(10, 0))
         
         # ===== 输出格式设置 =====
-        format_frame = ttk.LabelFrame(tab, text="输出格式设置", padding="10")
-        format_frame.grid(row=1, column=0, sticky=(W, E), pady=(0, 15))
+        format_frame = ttk.LabelFrame(tab, text="输出格式设置", padding="5")
+        format_frame.grid(row=1, column=0, sticky=(W, E), pady=(0, 5))
         
         ttk.Label(format_frame, text="保存格式:").grid(row=0, column=0, padx=(0, 10))
         
@@ -1243,10 +1182,11 @@ class OCRTabbedApp:
         self.log("📋 日志已清除")
     
     def select_common_output(self):
+        global OUTPUT_DIR
         """选择公用输出目录"""
         directory = filedialog.askdirectory(title="选择输出目录")
         if directory:
-            self.common_output_dir.set(directory)
+            OUTPUT_DIR = directory
             # 更新菜单中显示的目录状态（如果有的话）
             self.log(f"📂 公用输出目录已设置为: {directory}")
             
@@ -1254,15 +1194,12 @@ class OCRTabbedApp:
             # 这里简单地在日志中显示
     
     def clear_common_output(self):
+        global OUTPUT_DIR
         """清除公用输出目录"""
-        self.common_output_dir.set("")
+        OUTPUT_DIR = "识别结果"  # 恢复默认输出目录
         self.log("🗑️ 已清除输出目录设置，将使用默认目录")
     
-    def get_output_dir(self, default_dir):
-        """获取输出目录（优先使用公用目录）"""
-        if self.common_output_dir.get():
-            return self.common_output_dir.get()
-        return default_dir
+
     
     # ========== 表格识别方法 ==========
     def select_table_files(self):
@@ -1378,8 +1315,7 @@ class OCRTabbedApp:
         """处理文字识别文件"""
         try:
             # 获取输出目录
-            output_dir = self.get_output_dir("文字识别结果")
-            os.makedirs(output_dir, exist_ok=True)
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
             
             # 初始化OCR识别器
             recognizer = GeneralOCRRecognizer(
@@ -1391,7 +1327,7 @@ class OCRTabbedApp:
             total = len(self.general_files)
             self.log(f"\n{'='*50}")
             self.log(f"开始文字识别，共 {total} 个文件")
-            self.log(f"输出目录: {output_dir}")
+            self.log(f"输出目录: {OUTPUT_DIR}")
             self.log(f"语言类型: {self.general_language.get()}")
             self.log(f"识别场景: {self.general_scene.get()}")
             self.log(f"保存格式: {self.general_format.get()}")
@@ -1413,7 +1349,7 @@ class OCRTabbedApp:
                 try:
                     result = recognizer.process_image(
                         image_path,
-                        output_dir,
+                        OUTPUT_DIR,
                         self.general_format.get(),
                         self.general_language.get(),
                         self.general_scene.get(),
@@ -1434,12 +1370,12 @@ class OCRTabbedApp:
             self.log(f"批量处理完成！")
             self.log(f"✅ 成功: {success} 个")
             self.log(f"❌ 失败: {fail} 个")
-            self.log(f"📁 保存目录: {output_dir}")
+            self.log(f"📁 保存目录: {OUTPUT_DIR}")
             
             if success > 0:
                 self.root.after(100, lambda: messagebox.showinfo(
                     "完成", 
-                    f"文字识别完成！\n✅ 成功: {success} 个\n❌ 失败: {fail} 个\n\n保存位置:\n{output_dir}"
+                    f"文字识别完成！\n✅ 成功: {success} 个\n❌ 失败: {fail} 个\n\n保存位置:\n{OUTPUT_DIR}"
                 ))
             
         except Exception as e:
@@ -1471,8 +1407,7 @@ class OCRTabbedApp:
             )
             
             # 获取输出目录
-            output_dir = self.get_output_dir("表格识别结果")
-            os.makedirs(output_dir, exist_ok=True)
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
             
             total = len(self.table_files)
             success = 0
@@ -1480,7 +1415,7 @@ class OCRTabbedApp:
             
             self.log(f"\n{'='*50}")
             self.log(f"开始表格识别，共 {total} 个文件")
-            self.log(f"输出目录: {output_dir}")
+            self.log(f"输出目录: {OUTPUT_DIR}")
             self.log(f"{'='*50}")
             
             self.common_progress['maximum'] = total
@@ -1492,7 +1427,7 @@ class OCRTabbedApp:
                 
                 try:
                     output_path = os.path.join(
-                        output_dir,
+                        OUTPUT_DIR,
                         f"{Path(file_name).stem}_识别结果.xlsx"
                     )
                     
@@ -1513,7 +1448,7 @@ class OCRTabbedApp:
             if success > 0:
                 self.root.after(100, lambda: messagebox.showinfo(
                     "完成", 
-                    f"表格识别完成！\n成功: {success} 个\n失败: {fail} 个\n保存位置: {output_dir}"
+                    f"表格识别完成！\n成功: {success} 个\n失败: {fail} 个\n保存位置: {OUTPUT_DIR}"
                 ))
             
         except Exception as e:
@@ -1539,20 +1474,19 @@ class OCRTabbedApp:
         """处理图纸文件"""
         try:
             # 获取输出目录
-            output_dir = self.get_output_dir("图纸_已命名")
-            os.makedirs(output_dir, exist_ok=True)
-            
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            setup_temp_dir()
             recognizer = DrawingNumberRecognizer(
                 self.secret_id.get(),
                 self.secret_key.get(),
                 self.drawing_region.get()
             )
-            recognizer.output_dir = output_dir
+            recognizer.output_dir = OUTPUT_DIR
             
             total = len(self.drawing_files)
             self.log(f"\n{'='*50}")
             self.log(f"开始图纸图号识别，共 {total} 个文件")
-            self.log(f"输出目录: {output_dir}")
+            self.log(f"输出目录: {OUTPUT_DIR}")
             self.log(f"{'='*50}")
             
             self.common_progress['maximum'] = total
@@ -1585,12 +1519,12 @@ class OCRTabbedApp:
             self.log(f"批量处理完成！")
             self.log(f"✅ 成功: {success} 个")
             self.log(f"❌ 失败: {fail} 个")
-            self.log(f"📁 保存目录: {output_dir}")
-            
+            self.log(f"📁 保存目录: {OUTPUT_DIR}")
+            cleanup_temp()
             if success > 0:
                 self.root.after(100, lambda: messagebox.showinfo(
                     "完成", 
-                    f"图纸识别完成！\n✅ 成功命名: {success} 个\n❌ 识别失败: {fail} 个\n\n保存位置:\n{output_dir}"
+                    f"图纸识别完成！\n✅ 成功命名: {success} 个\n❌ 识别失败: {fail} 个\n\n保存位置:\n{OUTPUT_DIR}"
                 ))
             
         except Exception as e:
@@ -1615,20 +1549,18 @@ class OCRTabbedApp:
     def process_invoice_files(self):
         """处理发票文件"""
         try:
-            # 获取输出目录
-            output_dir = self.get_output_dir("发票识别结果")
             
             recognizer = VatInvoiceRecognizer(
                 self.secret_id.get(),
                 self.secret_key.get(),
                 self.invoice_region.get()
             )
-            recognizer.output_dir = output_dir
+            recognizer.output_dir = OUTPUT_DIR
             
             total = len(self.invoice_files)
             self.log(f"\n{'='*50}")
             self.log(f"开始增值税发票识别，共 {total} 个文件")
-            self.log(f"输出目录: {output_dir}")
+            self.log(f"输出目录: {OUTPUT_DIR}")
             self.log(f"保存格式: {self.invoice_format.get()}")
             self.log(f"{'='*50}")
             
@@ -1666,12 +1598,12 @@ class OCRTabbedApp:
             self.log(f"批量处理完成！")
             self.log(f"✅ 成功: {success} 个")
             self.log(f"❌ 失败: {fail} 个")
-            self.log(f"📁 保存目录: {output_dir}")
+            self.log(f"📁 保存目录: {OUTPUT_DIR}")
             
             if success > 0:
                 self.root.after(100, lambda: messagebox.showinfo(
                     "完成", 
-                    f"发票识别完成！\n✅ 成功: {success} 个\n❌ 失败: {fail} 个\n\n保存位置:\n{output_dir}"
+                    f"发票识别完成！\n✅ 成功: {success} 个\n❌ 失败: {fail} 个\n\n保存位置:\n{OUTPUT_DIR}"
                 ))
             
         except Exception as e:
