@@ -3,6 +3,7 @@
 功能1：表格识别V3 - 图片/PDF转Excel
 功能2：图纸图号识别 - PDF图纸批量重命名
 功能3：增值税发票识别 - 识别增值税发票关键信息
+功能4：本地识别 - 调用本地OCR服务
 """
 import os
 import sys
@@ -12,6 +13,7 @@ import re
 import shutil
 import time
 import threading
+import requests  # 新增导入
 import openpyxl
 from io import BytesIO
 from pathlib import Path
@@ -737,9 +739,129 @@ class GeneralOCRRecognizer:
             log(f"❌ 处理失败: {str(e)}")
             return None
 
+
+# ==================== 本地识别模块 ====================
+class LocalOCRRecognizer:
+    """本地OCR识别类（调用本地服务）"""
+    
+    def __init__(self, api_url="http://127.0.0.1:10001/ocr"):
+        self.api_url = api_url
+    
+    def recognize_image(self, image_path):
+        """
+        调用本地OCR服务识别图片
+        返回: 识别的文本列表
+        """
+        try:
+            # 读取图片文件
+            with open(image_path, 'rb') as f:
+                files = {'image': (os.path.basename(image_path), f, 'image/jpeg')}
+                
+                # 发送POST请求
+                response = requests.post(self.api_url, files=files, timeout=30)
+                
+                # 检查响应状态
+                if response.status_code != 200:
+                    raise Exception(f"HTTP错误: {response.status_code}")
+                
+                # 解析JSON响应
+                result = response.json()
+                
+                # 检查是否成功
+                if not result.get('success', False):
+                    raise Exception("服务返回失败状态")
+                
+                # 提取识别到的文字
+                texts = []
+                for item in result.get('texts', []):
+                    rec_texts = item.get('rec_texts', [])
+                    texts.extend(rec_texts)
+                
+                return texts
+                
+        except requests.exceptions.ConnectionError:
+            raise Exception("无法连接到本地服务，请确认服务是否启动")
+        except requests.exceptions.Timeout:
+            raise Exception("请求超时")
+        except json.JSONDecodeError:
+            raise Exception("服务返回非JSON格式数据")
+        except Exception as e:
+            raise Exception(f"识别失败: {str(e)}")
+    
+    def format_text_result(self, text_items):
+        """格式化识别结果为文本"""
+        if not text_items:
+            return "未识别到文字"
+        
+        return "\n".join(text_items)
+    
+    def save_as_txt(self, text_items, output_path):
+        """保存为TXT文件"""
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(self.format_text_result(text_items))
+        return output_path
+    
+    def process_image(self, image_path, output_dir, log_callback=None):
+        """
+        处理单个图片文件
+        """
+        def log(msg):
+            if log_callback:
+                log_callback(msg)
+            else:
+                print(msg)
+        
+        try:
+            log(f"📄 处理图片: {os.path.basename(image_path)}")
+            log(f"🔗 请求地址: {self.api_url}")
+            
+            # 识别文字
+            text_items = self.recognize_image(image_path)
+            
+            if not text_items:
+                log("❌ 未识别到文字")
+                return None
+            
+            log(f"✅ 识别到 {len(text_items)} 段文字")
+            
+            # 显示前几行预览
+            preview_lines = text_items[:5]
+            log(f"📝 预览:")
+            for line in preview_lines:
+                if len(line) > 50:
+                    line = line[:50] + "..."
+                log(f"   {line}")
+            if len(text_items) > 5:
+                log(f"   ... 等 {len(text_items)} 段文字")
+            
+            # 生成输出文件名
+            base_name = Path(image_path).stem
+            txt_path = os.path.join(output_dir, f"{base_name}_本地识别.txt")
+            
+            # 处理重名
+            counter = 1
+            original_path = txt_path
+            while os.path.exists(txt_path):
+                name_part = Path(original_path).stem
+                if name_part.endswith(f"_{counter-1}"):
+                    name_part = name_part[:-3]
+                txt_path = os.path.join(output_dir, f"{name_part}_{counter}.txt")
+                counter += 1
+            
+            # 保存TXT
+            self.save_as_txt(text_items, txt_path)
+            log(f"💾 已保存TXT: {os.path.basename(txt_path)}")
+            
+            return txt_path
+            
+        except Exception as e:
+            log(f"❌ 处理失败: {str(e)}")
+            return None
+
+
 # ==================== 主GUI应用 ====================
 class OCRTabbedApp:
-    """三选项卡OCR综合工具（公用导出设置）"""
+    """五选项卡OCR综合工具（公用导出设置）"""
     
     def __init__(self, root):
         self.root = root
@@ -754,6 +876,9 @@ class OCRTabbedApp:
         self.drawing_region = StringVar(value="ap-shanghai")
         self.invoice_region = StringVar(value="ap-shanghai")
         self.general_region = StringVar(value="ap-shanghai")  # 新增：文字识别区域
+        
+        # 本地识别服务地址
+        self.local_api_url = StringVar(value="http://127.0.0.1:10001/ocr")
         
         # 发票输出格式
         self.invoice_format = StringVar(value="both")
@@ -805,11 +930,12 @@ class OCRTabbedApp:
         self.notebook.grid(row=0, column=0, sticky=(N, S, E, W), pady=(0, 5))  # 减小底部间距
         main_frame.rowconfigure(1, weight=1)
         
-        # 创建四个选项卡
+        # 创建五个选项卡
         self.setup_general_tab()    # 文字识别选项卡
         self.setup_drawing_tab()    # 图纸识别选项卡
         self.setup_table_tab()      # 表格识别选项卡
         self.setup_invoice_tab()    # 发票识别选项卡
+        self.setup_local_tab()       # 本地识别选项卡（新增）
 
         # ========== 进度条和开始按钮区域 ==========
         control_frame = ttk.Frame(main_frame)
@@ -1169,6 +1295,137 @@ class OCRTabbedApp:
             value="both"
         ).grid(row=0, column=3, padx=5)
     
+    # ========== 本地识别选项卡 ==========
+    def setup_local_tab(self):
+        """本地识别选项卡"""
+        tab = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(tab, text="本地识别")
+        tab.columnconfigure(0, weight=1)
+        tab.rowconfigure(4, weight=1)  # 修改行索引
+        
+        # ===== 服务地址设置 =====
+        url_frame = ttk.LabelFrame(tab, text="服务地址", padding="5")
+        url_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 10))
+        url_frame.columnconfigure(1, weight=1)
+        
+        ttk.Label(url_frame, text="API地址:").grid(row=0, column=0, padx=(0, 5))
+        ttk.Entry(url_frame, textvariable=self.local_api_url, width=50).grid(row=0, column=1, sticky=(W, E))
+        ttk.Label(url_frame, text="默认: http://127.0.0.1:10001/ocr", foreground="gray").grid(row=1, column=1, sticky=W, pady=(2, 0))
+        
+        # ===== 文件选择 =====
+        file_frame = ttk.LabelFrame(tab, text="图片文件", padding="5")
+        file_frame.grid(row=1, column=0, sticky=(W, E), pady=(0, 5))
+        file_frame.columnconfigure(1, weight=1)
+        
+        # 本地识别文件变量
+        self.local_files = []
+        
+        ttk.Button(
+            file_frame,
+            text="📁 选择图片",
+            command=self.select_local_files,
+            width=15
+        ).grid(row=0, column=0, padx=(0, 10))
+        
+        self.local_file_label = ttk.Label(file_frame, text="未选择文件")
+        self.local_file_label.grid(row=0, column=1, sticky=W)
+        
+        ttk.Button(
+            file_frame,
+            text="清空",
+            command=self.clear_local_files,
+            width=8
+        ).grid(row=0, column=2, padx=(10, 0))
+        
+        # 文件列表
+        self.local_listbox = Listbox(
+            file_frame,
+            height=6,
+            selectmode=EXTENDED,
+            activestyle='none'
+        )
+        self.local_listbox.grid(row=1, column=0, columnspan=3, sticky=(W, E), pady=(10, 0))
+        
+        # ===== 操作按钮区域 =====
+        button_frame = ttk.Frame(tab)
+        button_frame.grid(row=2, column=0, sticky=(W, E), pady=(5, 10))
+        
+        # 测试连接按钮
+        ttk.Button(
+            button_frame,
+            text="测试连接",
+            command=self.test_local_connection,
+            width=15
+        ).grid(row=0, column=0, padx=(0, 10))
+        
+        # 开始识别按钮
+        self.local_start_btn = ttk.Button(
+            button_frame,
+            text="▶ 开始识别",
+            command=self.start_local_recognition,
+            width=15
+        )
+        self.local_start_btn.grid(row=0, column=1, padx=(0, 10))
+        
+        # 连接状态标签
+        self.connection_status = ttk.Label(button_frame, text="未测试", foreground="gray")
+        self.connection_status.grid(row=0, column=2, sticky=W)
+    
+    def select_local_files(self):
+        """选择本地识别图片文件"""
+        files = filedialog.askopenfilenames(
+            title="选择图片文件",
+            filetypes=[
+                ("图像文件", "*.png *.jpg *.jpeg *.bmp *.tif *.tiff"),
+                ("所有文件", "*.*")
+            ]
+        )
+        
+        if files:
+            for file in files:
+                if file not in self.local_files:
+                    self.local_files.append(file)
+                    self.local_listbox.insert(END, os.path.basename(file))
+            
+            self.local_file_label.config(text=f"已选择 {len(self.local_files)} 个文件")
+            self.log(f"📎 本地识别文件: 已添加 {len(files)} 个文件，当前共 {len(self.local_files)} 个文件")
+    
+    def clear_local_files(self):
+        """清空本地识别文件列表"""
+        self.local_files.clear()
+        self.local_listbox.delete(0, END)
+        self.local_file_label.config(text="未选择文件")
+        self.log("🗑️ 已清空本地识别文件列表")
+    
+    def test_local_connection(self):
+        """测试本地服务连接"""
+        try:
+            api_url = self.local_api_url.get().strip()
+            if not api_url:
+                messagebox.showwarning("提示", "请输入服务地址")
+                return
+            
+            self.connection_status.config(text="正在测试...", foreground="orange")
+            self.root.update_idletasks()
+            
+            # 发送测试请求（使用一个小的测试数据）
+            test_files = {'image': ('test.txt', b'test', 'text/plain')}
+            response = requests.post(api_url, files=test_files, timeout=5)
+            
+            if response.status_code == 200:
+                self.connection_status.config(text="✅ 连接成功", foreground="green")
+                self.log(f"✅ 本地服务连接成功: {api_url}")
+            else:
+                self.connection_status.config(text=f"❌ 服务返回错误: {response.status_code}", foreground="red")
+                self.log(f"❌ 本地服务返回错误: {response.status_code}")
+                
+        except requests.exceptions.ConnectionError:
+            self.connection_status.config(text="❌ 连接失败（服务未启动）", foreground="red")
+            self.log(f"❌ 无法连接到本地服务: {api_url}")
+        except Exception as e:
+            self.connection_status.config(text=f"❌ 测试失败", foreground="red")
+            self.log(f"❌ 连接测试失败: {str(e)}")
+    
     # ========== 公用方法 ==========
     def log(self, message):
         """公用日志方法"""
@@ -1295,8 +1552,9 @@ class OCRTabbedApp:
             self.start_drawing_recognition()
         elif current_tab == 2:  # 表格识别选项卡
             self.start_table_recognition()
-        else:  # 发票识别选项卡
+        elif current_tab == 3:  # 发票识别选项卡
             self.start_invoice_recognition()
+        # 本地识别选项卡不再使用公共的开始按钮，而是用自己的按钮
     
     def start_general_recognition(self):
         """开始文字识别"""
@@ -1604,6 +1862,89 @@ class OCRTabbedApp:
                 self.root.after(100, lambda: messagebox.showinfo(
                     "完成", 
                     f"发票识别完成！\n✅ 成功: {success} 个\n❌ 失败: {fail} 个\n\n保存位置:\n{OUTPUT_DIR}"
+                ))
+            
+        except Exception as e:
+            self.log(f"❌ 程序错误: {str(e)}")
+        finally:
+            self.start_btn.config(state=NORMAL)
+            self.common_progress['value'] = 0
+    
+    # ========== 本地识别方法 ==========
+    def start_local_recognition(self):
+        """开始本地识别"""
+        if not self.local_files:
+            messagebox.showwarning("提示", "请选择要识别的图片文件")
+            return
+        
+        api_url = self.local_api_url.get().strip()
+        if not api_url:
+            messagebox.showwarning("提示", "请输入本地服务地址")
+            return
+        
+        # 禁用按钮
+        self.start_btn.config(state=DISABLED)
+        
+        # 在新线程中执行
+        thread = threading.Thread(target=self.process_local_files, daemon=True)
+        thread.start()
+    
+    def process_local_files(self):
+        """处理本地识别文件"""
+        try:
+            # 获取输出目录
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            
+            # 初始化本地识别器
+            recognizer = LocalOCRRecognizer(self.local_api_url.get().strip())
+            
+            total = len(self.local_files)
+            self.log(f"\n{'='*50}")
+            self.log(f"开始本地识别，共 {total} 个文件")
+            self.log(f"输出目录: {OUTPUT_DIR}")
+            self.log(f"服务地址: {recognizer.api_url}")
+            self.log(f"{'='*50}")
+            
+            self.common_progress['maximum'] = total
+            self.common_progress['value'] = 0
+            
+            success = 0
+            fail = 0
+            
+            for i, image_path in enumerate(self.local_files):
+                self.log(f"\n📌 进度: {i+1}/{total}")
+                
+                def log_callback(msg):
+                    self.log(msg)
+                    self.root.update_idletasks()
+                
+                try:
+                    result = recognizer.process_image(
+                        image_path,
+                        OUTPUT_DIR,
+                        log_callback
+                    )
+                    if result:
+                        success += 1
+                    else:
+                        fail += 1
+                except Exception as e:
+                    self.log(f"❌ 处理异常: {str(e)}")
+                    fail += 1
+                
+                self.common_progress['value'] = i + 1
+                self.root.update_idletasks()
+            
+            self.log(f"\n{'='*50}")
+            self.log(f"批量处理完成！")
+            self.log(f"✅ 成功: {success} 个")
+            self.log(f"❌ 失败: {fail} 个")
+            self.log(f"📁 保存目录: {OUTPUT_DIR}")
+            
+            if success > 0:
+                self.root.after(100, lambda: messagebox.showinfo(
+                    "完成", 
+                    f"本地识别完成！\n✅ 成功: {success} 个\n❌ 失败: {fail} 个\n\n保存位置:\n{OUTPUT_DIR}"
                 ))
             
         except Exception as e:
