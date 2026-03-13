@@ -359,10 +359,6 @@ class DrawingNumberRecognizer:
         self.secret_key = secret_key or TENCENT_SECRET_KEY
         self.region = region
         
-    
-    
-    
-    
     def cv_imread(self, file_path):
         """解决imread不能读取中文路径的问题"""
         cv_img = cv2.imdecode(np.fromfile(file_path, dtype=np.uint8), -1)
@@ -861,13 +857,13 @@ class LocalOCRRecognizer:
 
 # ==================== 主GUI应用 ====================
 class OCRTabbedApp:
-    """五选项卡OCR综合工具（公用导出设置）"""
+    """五选项卡OCR综合工具"""
     
     def __init__(self, root):
         self.root = root
         self.root.title("CISDI文字识别工具")
-        self.root.geometry("900x700")
-        self.root.minsize(800, 700)
+        self.root.geometry("900x620")
+        self.root.minsize(800, 620)
 
         # 共享变量
         self.secret_id = StringVar(value=TENCENT_SECRET_ID)
@@ -875,7 +871,7 @@ class OCRTabbedApp:
         self.table_region = StringVar(value="ap-guangzhou")
         self.drawing_region = StringVar(value="ap-shanghai")
         self.invoice_region = StringVar(value="ap-shanghai")
-        self.general_region = StringVar(value="ap-shanghai")  # 新增：文字识别区域
+        self.general_region = StringVar(value="ap-shanghai")
         
         # 本地识别服务地址
         self.local_api_url = StringVar(value="http://127.0.0.1:10001/ocr")
@@ -884,28 +880,13 @@ class OCRTabbedApp:
         self.invoice_format = StringVar(value="both")
         
         # 文字识别输出格式
-        self.general_format = StringVar(value="txt")  # 新增：文字识别输出格式
+        self.general_format = StringVar(value="txt")
 
         # 设置窗口图标
         try:
-            # 方法1：从ICO文件加载
-            self.root.iconbitmap('app_icon.ico')  # ICO文件放在程序同目录
-            
-            # 或者使用绝对路径
-            # self.root.iconbitmap(r'C:\path\to\your\icon.ico')
+            self.root.iconbitmap('app_icon.ico')
         except Exception as e:
             print(f"图标加载失败: {e}")
-        
-        # 共享变量
-        self.secret_id = StringVar(value=TENCENT_SECRET_ID)
-        self.secret_key = StringVar(value=TENCENT_SECRET_KEY)
-        self.table_region = StringVar(value="ap-guangzhou")
-        self.drawing_region = StringVar(value="ap-shanghai")
-        self.invoice_region = StringVar(value="ap-shanghai")
-        
-        # 发票输出格式
-        self.invoice_format = StringVar(value="both")
-
         
         # 设置UI
         self.setup_ui()
@@ -916,7 +897,7 @@ class OCRTabbedApp:
         self.setup_menu()
         
         # 主框架
-        main_frame = ttk.Frame(self.root, padding="5")  # 减小内边距
+        main_frame = ttk.Frame(self.root, padding="5")
         main_frame.grid(row=0, column=0, sticky=(N, W, E, S))
         
         # 配置网格权重
@@ -927,7 +908,7 @@ class OCRTabbedApp:
         
         # ========== 选项卡 ==========
         self.notebook = ttk.Notebook(main_frame)
-        self.notebook.grid(row=0, column=0, sticky=(N, S, E, W), pady=(0, 5))  # 减小底部间距
+        self.notebook.grid(row=0, column=0, sticky=(N, S, E, W), pady=(0, 5))
         main_frame.rowconfigure(1, weight=1)
         
         # 创建五个选项卡
@@ -939,32 +920,32 @@ class OCRTabbedApp:
 
         # ========== 进度条和开始按钮区域 ==========
         control_frame = ttk.Frame(main_frame)
-        control_frame.grid(row=1, column=0, pady=(0, 3), sticky=(W, E))  # 减小间距
+        control_frame.grid(row=1, column=0, pady=(0, 3), sticky=(W, E))
         
         # 开始按钮放在左边
         self.start_btn = ttk.Button(
             control_frame,
             text="开始识别",
             command=self.start_recognition,
-            width=12  # 稍微减小宽度
+            width=12
         )
         self.start_btn.grid(row=0, column=0, padx=(0, 10))
         
         # 进度条
-        self.common_progress = ttk.Progressbar(control_frame, mode='determinate', length=250)  # 稍微缩短
+        self.common_progress = ttk.Progressbar(control_frame, mode='determinate', length=250)
         self.common_progress.grid(row=0, column=1, padx=(0, 0))
         
         # 让进度条右侧的空间可扩展
         control_frame.columnconfigure(1, weight=1)
         
         # ========== 底部：公用日志 ==========
-        log_frame = ttk.LabelFrame(main_frame, text="处理日志", padding="5")  # 减小内边距
+        log_frame = ttk.LabelFrame(main_frame, text="处理日志", padding="5")
         log_frame.grid(row=2, column=0, sticky=(W, E, S), pady=(0, 0))
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
         
         # 日志文本框
-        self.common_log = Text(log_frame, height=22, wrap=WORD)  # 稍微减小高度
+        self.common_log = Text(log_frame, height=15, wrap=WORD)
         self.common_log.grid(row=0, column=0, sticky=(N, S, E, W))
         
         log_scrollbar = ttk.Scrollbar(log_frame, orient=VERTICAL, command=self.common_log.yview)
@@ -973,7 +954,7 @@ class OCRTabbedApp:
         
         # ========== 清除日志按钮放在日志框下面靠右侧 ==========
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=3, column=0, pady=(3, 0), sticky=(E))  # 靠右对齐
+        button_frame.grid(row=3, column=0, pady=(3, 0), sticky=(E))
         
         ttk.Button(
             button_frame,
@@ -1051,14 +1032,14 @@ class OCRTabbedApp:
 
     def setup_general_tab(self):
         """文字识别选项卡（通用OCR）"""
-        tab = ttk.Frame(self.notebook, padding="10")  # 减小内边距
+        tab = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(tab, text="文字识别")
         tab.columnconfigure(0, weight=1)
         tab.rowconfigure(3, weight=1)
         
         # ===== 文件选择 =====
-        file_frame = ttk.LabelFrame(tab, text="图片文件", padding="5")  # 减小内边距
-        file_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 5))  # 减小间距
+        file_frame = ttk.LabelFrame(tab, text="图片文件", padding="5")
+        file_frame.grid(row=0, column=0, sticky=(W, E), pady=(0, 5))
         file_frame.columnconfigure(1, weight=1)
         
         
@@ -1069,8 +1050,8 @@ class OCRTabbedApp:
             file_frame,
             text="📁 选择图片",
             command=self.select_general_files,
-            width=12  # 减小宽度
-        ).grid(row=0, column=0, padx=(0, 5))  # 减小间距
+            width=12
+        ).grid(row=0, column=0, padx=(0, 5))
         
         self.general_file_label = ttk.Label(file_frame, text="未选择文件")
         self.general_file_label.grid(row=0, column=1, sticky=W)
@@ -1079,17 +1060,17 @@ class OCRTabbedApp:
             file_frame,
             text="清空",
             command=self.clear_general_files,
-            width=6  # 减小宽度
+            width=6
         ).grid(row=0, column=2, padx=(5, 0))
         
-        # 文件列表 - 减小高度
+        # 文件列表
         self.general_listbox = Listbox(
             file_frame,
-            height=3,  # 减小高度
+            height=3,
             selectmode=EXTENDED,
             activestyle='none'
         )
-        self.general_listbox.grid(row=1, column=0, columnspan=3, sticky=(W, E), pady=(5, 0))  # 减小间距
+        self.general_listbox.grid(row=1, column=0, columnspan=3, sticky=(W, E), pady=(5, 0))
         
         # ===== 输出格式设置 =====
         format_frame = ttk.LabelFrame(tab, text="输出格式设置", padding="5")
@@ -1180,11 +1161,10 @@ class OCRTabbedApp:
             activestyle='none'
         )
         self.table_listbox.grid(row=1, column=0, columnspan=3, sticky=(W, E), pady=(10, 0))
+
     def show_current_output(self):
         """显示当前输出目录（此方法保留但不使用）"""
         pass
-
-
 
     def setup_drawing_tab(self):
         """图纸图号识别选项卡"""
@@ -1301,7 +1281,7 @@ class OCRTabbedApp:
         tab = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(tab, text="本地识别")
         tab.columnconfigure(0, weight=1)
-        tab.rowconfigure(4, weight=1)  # 修改行索引
+        tab.rowconfigure(2, weight=1)  # 保持和原选项卡一致的行索引
         
         # ===== 服务地址设置 =====
         url_frame = ttk.LabelFrame(tab, text="服务地址", padding="5")
@@ -1340,36 +1320,25 @@ class OCRTabbedApp:
         # 文件列表
         self.local_listbox = Listbox(
             file_frame,
-            height=6,
+            height=3,
             selectmode=EXTENDED,
             activestyle='none'
         )
         self.local_listbox.grid(row=1, column=0, columnspan=3, sticky=(W, E), pady=(10, 0))
         
-        # ===== 操作按钮区域 =====
-        button_frame = ttk.Frame(tab)
-        button_frame.grid(row=2, column=0, sticky=(W, E), pady=(5, 10))
+        # ===== 连接测试按钮 =====
+        test_frame = ttk.Frame(tab)
+        test_frame.grid(row=2, column=0, sticky=(W, E), pady=(5, 10))
         
-        # 测试连接按钮
         ttk.Button(
-            button_frame,
+            test_frame,
             text="测试连接",
             command=self.test_local_connection,
             width=15
         ).grid(row=0, column=0, padx=(0, 10))
         
-        # 开始识别按钮
-        self.local_start_btn = ttk.Button(
-            button_frame,
-            text="▶ 开始识别",
-            command=self.start_local_recognition,
-            width=15
-        )
-        self.local_start_btn.grid(row=0, column=1, padx=(0, 10))
-        
-        # 连接状态标签
-        self.connection_status = ttk.Label(button_frame, text="未测试", foreground="gray")
-        self.connection_status.grid(row=0, column=2, sticky=W)
+        self.connection_status = ttk.Label(test_frame, text="未测试", foreground="gray")
+        self.connection_status.grid(row=0, column=1, sticky=W)
     
     def select_local_files(self):
         """选择本地识别图片文件"""
@@ -1408,7 +1377,7 @@ class OCRTabbedApp:
             self.connection_status.config(text="正在测试...", foreground="orange")
             self.root.update_idletasks()
             
-            # 发送测试请求（使用一个小的测试数据）
+            # 发送测试请求
             test_files = {'image': ('test.txt', b'test', 'text/plain')}
             response = requests.post(api_url, files=test_files, timeout=5)
             
@@ -1444,19 +1413,13 @@ class OCRTabbedApp:
         directory = filedialog.askdirectory(title="选择输出目录")
         if directory:
             OUTPUT_DIR = directory
-            # 更新菜单中显示的目录状态（如果有的话）
             self.log(f"📂 公用输出目录已设置为: {directory}")
-            
-            # 可选：更新菜单项文本（如果想让菜单显示当前目录）
-            # 这里简单地在日志中显示
     
     def clear_common_output(self):
         global OUTPUT_DIR
         """清除公用输出目录"""
-        OUTPUT_DIR = "识别结果"  # 恢复默认输出目录
+        OUTPUT_DIR = "识别结果"
         self.log("🗑️ 已清除输出目录设置，将使用默认目录")
-    
-
     
     # ========== 表格识别方法 ==========
     def select_table_files(self):
@@ -1554,7 +1517,8 @@ class OCRTabbedApp:
             self.start_table_recognition()
         elif current_tab == 3:  # 发票识别选项卡
             self.start_invoice_recognition()
-        # 本地识别选项卡不再使用公共的开始按钮，而是用自己的按钮
+        else:  # 本地识别选项卡
+            self.start_local_recognition()
     
     def start_general_recognition(self):
         """开始文字识别"""
